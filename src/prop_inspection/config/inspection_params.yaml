@@ -1,0 +1,13 @@
+spawn_grid:
+  ros__parameters:
+    rows: 1
+    cols: 1
+    spacing: 0.22
+    z_height: 0.05
+    class_names: ["good", "warped", "incomplete", "sinkage"]
+
+inspect_camera:
+  ros__parameters:
+    rows: 5
+    cols: 5
+    save_debug_images: false
