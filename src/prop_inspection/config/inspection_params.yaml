@@ -1,9 +1,11 @@
 spawn_grid:
   ros__parameters:
-    rows: 1
-    cols: 1
+    rows: 5
+    cols: 5
     spacing: 0.22
     z_height: 0.05
+    spawn_period: 0.75
+    good_fraction: 0.75
     class_names: ["good", "warped", "incomplete", "sinkage"]
 
 inspect_camera:
