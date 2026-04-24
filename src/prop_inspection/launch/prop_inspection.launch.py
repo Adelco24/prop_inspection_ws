@@ -51,7 +51,7 @@ def generate_launch_description():
 
     # Start inspector after spawn
     inspect_camera = TimerAction(
-        period=5.0,
+        period=40.0,
         actions=[
             Node(
                 package="prop_inspection",

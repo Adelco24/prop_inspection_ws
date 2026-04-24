@@ -1,6 +1,9 @@
 import os
 import random
 import subprocess
+import json
+from std_msgs.msg import String
+from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy
 
 import rclpy
 from rclpy.node import Node
@@ -46,6 +49,12 @@ class SpawnGridNode(Node):
             f'other defects share remaining {(1.0 - self.good_fraction):.2f}'
         )
 
+        qos = QoSProfile(depth=1)
+        qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
+        qos.reliability = ReliabilityPolicy.RELIABLE
+
+        self.truth_pub = self.create_publisher(String, '/prop_truth_map', qos)
+        
         self.timer = self.create_timer(self.spawn_period, self.spawn_next_model)
 
     def validate_parameters(self):
@@ -115,10 +124,23 @@ class SpawnGridNode(Node):
             self.get_logger().info('Finished spawning all props')
             self.timer.cancel()
 
-            for item in self.truth_map:
+            msg = String()
+            msg.data = json.dumps(self.truth_map)
+            self.truth_pub.publish(msg)
+
+            self.get_logger().info('Published truth map on /prop_truth_map')
+
+            defective_cells = [
+                item for item in self.truth_map
+                if item["label"] != "good"
+            ]
+
+            self.get_logger().info('Defective cells from ground truth:')
+            for item in defective_cells:
                 self.get_logger().info(
-                    f'cell=({item["row"]},{item["col"]}) truth={item["label"]}'
+                    f'  cell=({item["row"]},{item["col"]}) truth={item["label"]}'
                 )
+
             return
 
         item = self.spawn_queue[self.spawn_index]
