@@ -21,6 +21,8 @@ class SpawnGridNode(Node):
         self.declare_parameter('spawn_period', 0.75)
         self.declare_parameter('good_fraction', 0.75)
         self.declare_parameter('class_names', ['good', 'warped', 'incomplete', 'sinkage'])
+        self.declare_parameter('test_unique_grid', False)
+        self.test_unique_grid = bool(self.get_parameter('test_unique_grid').value)
 
         self.rows = self.get_parameter('rows').value
         self.cols = self.get_parameter('cols').value
@@ -95,7 +97,14 @@ class SpawnGridNode(Node):
 
         for r in range(self.rows):
             for c in range(self.cols):
-                defect_class = self.choose_defect_class()
+                if self.test_unique_grid and self.rows == 2 and self.cols == 2:
+                    test_layout = [
+                        ["good", "warped"],
+                        ["incomplete", "sinkage"],
+                    ]
+                    defect_class = test_layout[r][c]
+                else:
+                    defect_class = self.choose_defect_class()
                 model_name = f'{defect_class}_prop'
                 instance_name = f'{model_name}_{r}_{c}'
 
@@ -118,12 +127,30 @@ class SpawnGridNode(Node):
                     planned_counts[defect_class] += 1
 
         self.get_logger().info(f'Planned counts: {planned_counts}')
+        self.get_logger().info('RAW SPAWN GRID:')
+        for r in range(self.rows):
+            row_labels = []
+            for c in range(self.cols):
+                item = next(x for x in self.spawn_queue if x['row'] == r and x['col'] == c)
+                row_labels.append(item['defect_class'])
+            self.get_logger().info(f'  row {r}: {row_labels}')
 
     def spawn_next_model(self):
         if self.spawn_index >= len(self.spawn_queue):
             self.get_logger().info('Finished spawning all props')
             self.timer.cancel()
 
+            self.get_logger().info('CAMERA-MAPPED TRUTH GRID BEING PUBLISHED:')
+            for r in range(self.rows):
+                row_labels = []
+                for c in range(self.cols):
+                    match = next(
+                        (item for item in self.truth_map if item["row"] == r and item["col"] == c),
+                        None
+                    )
+                    row_labels.append(match["label"] if match else "none")
+                self.get_logger().info(f'  row {r}: {row_labels}')
+            
             msg = String()
             msg.data = json.dumps(self.truth_map)
             self.truth_pub.publish(msg)
@@ -154,9 +181,12 @@ class SpawnGridNode(Node):
         )
 
         if success:
+            camera_row = self.cols - 1 - item['col']
+            camera_col = self.rows - 1 - item['row']
+
             self.truth_map.append({
-                'row': item['row'],
-                'col': item['col'],
+                'row': camera_row,
+                'col': camera_col,
                 'label': item['defect_class']
             })
 

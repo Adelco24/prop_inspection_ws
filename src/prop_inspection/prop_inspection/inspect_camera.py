@@ -53,6 +53,8 @@ class InspectCameraNode(Node):
         pkg_share = get_package_share_directory('prop_inspection')
         self.output_dir = os.path.join(pkg_share, 'debug_output')
         os.makedirs(self.output_dir, exist_ok=True)
+        self.template_dir = os.path.join(pkg_share, 'templates')
+        self.templates = self.load_templates()
 
         self.truth_map = None
 
@@ -80,8 +82,97 @@ class InspectCameraNode(Node):
             f'cell={self.cell_w_px}x{self.cell_h_px}px'
         )
 
+    def compute_area_ratio(self, img, contour):
+        if img is None or contour is None:
+            return 0.0
+
+        h, w = img.shape[:2]
+        image_area = float(h * w)
+
+        if image_area <= 0:
+            return 0.0
+
+        contour_area = cv2.contourArea(contour)
+        return contour_area / image_area
+    
+    def load_templates(self):
+        template_names = ['good', 'warped', 'incomplete', 'sinkage']
+        templates = {}
+
+        for name in template_names:
+            path = os.path.join(self.template_dir, f'{name}.png')
+
+            if not os.path.exists(path):
+                self.get_logger().warn(f'Template missing: {path}')
+                continue
+
+            img = cv2.imread(path)
+
+            if img is None:
+                self.get_logger().warn(f'Could not read template: {path}')
+                continue
+
+            contour = self.extract_main_contour(img)
+
+            if contour is None:
+                self.get_logger().warn(f'No contour found in template: {path}')
+                continue
+
+            area_ratio = self.compute_area_ratio(img, contour)
+            templates[name] = {
+                'contour': contour,
+                'area_ratio': area_ratio
+            }
+            self.get_logger().info(f'Loaded template: {name}, area_ratio={area_ratio:.4f}')
+            self.get_logger().info(f'Loaded template: {name}')
+
+        self.get_logger().info(f'Loaded {len(templates)} templates')
+        return templates
+
+
+    def extract_main_contour(self, img):
+        if img is None or img.size == 0:
+            return None
+
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+        blur = cv2.GaussianBlur(gray, (5, 5), 0)
+
+        _, thresh = cv2.threshold(
+            blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU
+        )
+
+        # Ensure object is white and background is black.
+        white_ratio = np.count_nonzero(thresh) / thresh.size
+        if white_ratio > 0.5:
+            thresh = cv2.bitwise_not(thresh)
+
+        kernel = np.ones((5, 5), np.uint8)
+        thresh = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
+        thresh = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
+
+        contours, _ = cv2.findContours(
+            thresh,
+            cv2.RETR_EXTERNAL,
+            cv2.CHAIN_APPROX_SIMPLE
+        )
+
+        if not contours:
+            return None
+
+        largest = max(contours, key=cv2.contourArea)
+
+        if cv2.contourArea(largest) < 100:
+            return None
+
+        return largest
+    
     def image_callback(self, msg):
         if self.received_once:
+            return
+        
+        if self.truth_map is None:
+            self.get_logger().warn('Image received, but truth map not available yet. Waiting...')
             return
 
         try:
@@ -91,7 +182,6 @@ class InspectCameraNode(Node):
             return
 
         h, w, _ = frame.shape
-
         image_center_x = w // 2
         image_center_y = h // 2
 
@@ -194,6 +284,12 @@ class InspectCameraNode(Node):
                     2
                 )
 
+        self.get_logger().info('PREDICTED GRID FROM CAMERA IMAGE:')
+        for r in range(self.rows):
+            row_labels = []
+            for c in range(self.cols):
+                row_labels.append(predictions.get((r, c), 'none'))
+            self.get_logger().info(f'  row {r}: {row_labels}')
         self.get_logger().info('Predicted defective cells:')
         if defective_predictions:
             for r, c, pred in defective_predictions:
@@ -239,6 +335,12 @@ class InspectCameraNode(Node):
                 for item in truth_list
             }
             self.get_logger().info(f'Received truth map with {len(self.truth_map)} cells')
+            self.get_logger().info('TRUTH GRID RECEIVED BY INSPECT_CAMERA:')
+            for r in range(self.rows):
+                row_labels = []
+                for c in range(self.cols):
+                    row_labels.append(self.truth_map.get((r, c), 'none'))
+                self.get_logger().info(f'  row {r}: {row_labels}')
         except Exception as e:
             self.get_logger().error(f'Failed to parse truth map: {e}')
     
@@ -246,19 +348,49 @@ class InspectCameraNode(Node):
         if crop is None or crop.size == 0:
             return 'empty'
 
-        mean_bgr = np.mean(crop.reshape(-1, 3), axis=0)
-        b, g, r = mean_bgr
+        if not self.templates:
+            return 'no_templates'
 
-        if g > r and g > b:
-            return 'good'
-        elif r > g and r > b:
-            return 'incomplete'
-        elif b > r and b > g:
-            return 'sinkage'
-        else:
-            return 'warped'
+        crop_contour = self.extract_main_contour(crop)
 
+        if crop_contour is None:
+            return 'empty'
 
+        crop_area_ratio = self.compute_area_ratio(crop, crop_contour)
+
+        scores = {}
+
+        for label, template_data in self.templates.items():
+            template_contour = template_data['contour']
+            template_area_ratio = template_data['area_ratio']
+
+            shape_score = cv2.matchShapes(
+                crop_contour,
+                template_contour,
+                cv2.CONTOURS_MATCH_I1,
+                0.0
+            )
+
+            area_score = abs(crop_area_ratio - template_area_ratio)
+
+            # Combined score:
+            # shape_score handles outline
+            # area_score breaks ties between similar silhouettes
+            combined_score = shape_score + 2.0 * area_score
+
+            scores[label] = combined_score
+
+        best_label = min(scores, key=scores.get)
+
+        debug_scores = ', '.join(
+            [f'{label}:{score:.5f}' for label, score in scores.items()]
+        )
+        self.get_logger().info(
+            f'crop_area_ratio={crop_area_ratio:.4f}, scores=({debug_scores}), best={best_label}'
+        )
+
+        return best_label
+        
 
 def main(args=None):
     rclpy.init(args=args)

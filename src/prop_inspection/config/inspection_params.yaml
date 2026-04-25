@@ -2,10 +2,11 @@ spawn_grid:
   ros__parameters:
     rows: 5
     cols: 5
-    spacing: 0.30
+    spacing: 0.24
     z_height: 0.05
     spawn_period: 0.75
     good_fraction: 0.75
+    test_unique_grid: true
     class_names: ["good", "warped", "incomplete", "sinkage"]
 
 inspect_camera:
@@ -16,7 +17,7 @@ inspect_camera:
     save_crops: true
     crop_margin_px: 10
     
-    cell_w_px: 160
-    cell_h_px: 160
+    cell_w_px: 128
+    cell_h_px: 128
     grid_center_offset_x_px: 0
     grid_center_offset_y_px: 0

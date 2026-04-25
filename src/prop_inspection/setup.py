@@ -15,6 +15,7 @@ setup(
         (os.path.join('share', package_name, 'launch'), glob('launch/*.py')),
         (os.path.join('share', package_name, 'worlds'), glob('worlds/*.sdf')),
         (os.path.join('share', package_name, 'config'), glob('config/*.yaml')),
+        (os.path.join('share', package_name, 'templates'), glob('templates/*.png')),
 
         (os.path.join('share', package_name, 'models', 'good_prop'),
             glob('models/good_prop/*.config') + glob('models/good_prop/*.sdf')),
