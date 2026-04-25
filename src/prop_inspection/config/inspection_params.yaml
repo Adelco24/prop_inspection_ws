@@ -4,7 +4,7 @@ spawn_grid:
     cols: 5
     spacing: 0.24
     z_height: 0.05
-    spawn_period: 0.75
+    spawn_period: 0.05
     good_fraction: 0.75
     test_unique_grid: true
     class_names: ["good", "warped", "incomplete", "sinkage"]

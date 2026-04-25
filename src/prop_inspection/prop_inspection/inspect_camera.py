@@ -2,6 +2,7 @@ import os
 
 import cv2
 import numpy as np
+import time
 
 import rclpy
 import json
@@ -174,7 +175,7 @@ class InspectCameraNode(Node):
         if self.truth_map is None:
             self.get_logger().warn('Image received, but truth map not available yet. Waiting...')
             return
-
+        start_time = time.perf_counter()
         try:
             frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
         except Exception as e:
@@ -283,7 +284,8 @@ class InspectCameraNode(Node):
                     (0, 255, 0),
                     2
                 )
-
+        end_time = time.perf_counter()
+        elapsed = end_time - start_time
         self.get_logger().info('PREDICTED GRID FROM CAMERA IMAGE:')
         for r in range(self.rows):
             row_labels = []
@@ -308,7 +310,7 @@ class InspectCameraNode(Node):
         if self.truth_map is not None and total > 0:
             accuracy = 100.0 * correct / total
             self.get_logger().info(
-                f'Run accuracy: {correct}/{total} = {accuracy:.1f}%'
+                f'Run accuracy: {correct}/{total} = {accuracy:.1f}% in {elapsed: .4f} seconds.'
             )
         else:
             self.get_logger().warn(
