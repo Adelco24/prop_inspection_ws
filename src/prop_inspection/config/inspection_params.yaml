@@ -21,3 +21,15 @@ inspect_camera:
     cell_h_px: 128
     grid_center_offset_x_px: 0
     grid_center_offset_y_px: 0
+    
+    dark_threshold: 80
+    
+    good_warped_probe_x: 52
+    good_warped_probe_y: 40
+    
+    sinkage_incomplete_probe_x: 52
+    sinkage_incomplete_probe_y: 40
+    
+    probe_radius_px: 2
+    probe_dark_threshold: 80
+    ratio_tie_abs: 0.001
