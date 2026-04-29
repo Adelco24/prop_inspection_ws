@@ -12,7 +12,6 @@ def generate_launch_description():
     world_path = PathJoinSubstitution([pkg_share, "worlds", "inspection_world.sdf"])
     config_path = PathJoinSubstitution([pkg_share, "config", "inspection_params.yaml"])
 
-    # Start Gazebo the same way as your known-good project
     gz_sim_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             PathJoinSubstitution([
@@ -26,7 +25,6 @@ def generate_launch_description():
         }.items(),
     )
 
-    # Bridge Gazebo camera -> ROS image topic
     bridge = Node(
         package="ros_gz_bridge",
         executable="parameter_bridge",
@@ -36,7 +34,6 @@ def generate_launch_description():
         ],
     )
 
-    # Spawn grid after Gazebo has had time to start
     spawn_grid = TimerAction(
         period=3.0,
         actions=[

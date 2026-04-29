@@ -41,4 +41,4 @@ source install/setup.bash
 ros2 launch prop_inspection prop_inspection.launch.py
 ```
 
-You should expect to see the props slowly spawn, and then after about 45 seconds (to ensure all are spawned) it will run the visual code and print accuracy results to terminal.
+You should expect to see the props slowly spawn, and then after about 45 seconds (to ensure all are spawned) it will run the visual code and print accuracy results to terminal, as well as the time taken to complete.
